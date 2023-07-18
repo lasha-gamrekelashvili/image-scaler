@@ -48,8 +48,11 @@ public class UpscaleServiceImpl implements UpscaleService{
 
             return OptionalData.map(item -> {
                 byte[] decodedImageBytes = Base64.getDecoder().decode(item.getBlob());
-                return ResponseEntity.ok(new String(decodedImageBytes, StandardCharsets.UTF_8));
-            }).orElse(ResponseEntity.badRequest().body("Failed to process the image."));
+                var responseHeader = new HttpHeaders();
+                responseHeader.setContentType(MediaType.IMAGE_JPEG);
+
+                return new ResponseEntity<>(decodedImageBytes, responseHeader, HttpStatus.OK);
+            }).orElse(new ResponseEntity<>(HttpStatus.NO_CONTENT));
 
         } catch (IOException | CustomImageProcessingException.InvalidImageSizeException | CustomImageProcessingException.InvalidBase64DataException | CustomImageProcessingException.UpscaleApiException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
