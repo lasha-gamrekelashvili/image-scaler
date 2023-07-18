@@ -24,7 +24,10 @@ public class ImageController {
             @ApiResponse(responseCode = "200", description = "Image scaled up successfully.",
                     content = { @Content(mediaType = "text/plain",
                             schema = @Schema(implementation = String.class)) }),
-            @ApiResponse(responseCode = "400", description = "Provided image was bigger than 1024x1024 or was not in the base64 format.",
+            @ApiResponse(responseCode = "400", description = "Provided image was bigger than 1024x1024, file was corrupted or was not in the base64 format.",
+                    content = { @Content(mediaType = "text/plain",
+                            schema = @Schema(implementation = String.class)) }),
+            @ApiResponse(responseCode = "500", description = "Unexpected error on server side.",
                     content = { @Content(mediaType = "text/plain",
                             schema = @Schema(implementation = String.class)) }),
     })
