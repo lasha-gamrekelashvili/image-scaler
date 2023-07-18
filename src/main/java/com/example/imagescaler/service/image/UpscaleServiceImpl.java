@@ -12,7 +12,6 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 @Service
@@ -27,7 +26,7 @@ public class UpscaleServiceImpl implements UpscaleService{
     private static final long MAX_FILE_SIZE = 10 * 1024 * 1024;
     public static final String SCALE_SIZE = "1200:-1";
     @Override
-    public ResponseEntity<?> upscale(MultipartFile image) {
+    public byte[] upscale(MultipartFile image) {
         try {
             validateImageSize(image);
 
@@ -46,18 +45,11 @@ public class UpscaleServiceImpl implements UpscaleService{
             var response = parseResponse(restTemplate.exchange(API_URL, HttpMethod.POST, requestEntity, String.class));
             var OptionalData = Objects.requireNonNull(response.getData().stream().filter(Objects::nonNull).findFirst());
 
-            return OptionalData.map(item -> {
-                byte[] decodedImageBytes = Base64.getDecoder().decode(item.getBlob());
-                var responseHeader = new HttpHeaders();
-                responseHeader.setContentType(MediaType.IMAGE_JPEG);
-
-                return new ResponseEntity<>(decodedImageBytes, responseHeader, HttpStatus.OK);
-            }).orElse(new ResponseEntity<>(HttpStatus.NO_CONTENT));
-
-        } catch (IOException | CustomImageProcessingException.InvalidImageSizeException | CustomImageProcessingException.InvalidBase64DataException | CustomImageProcessingException.UpscaleApiException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        } catch (Exception e){
-            return ResponseEntity.internalServerError().body(e.getMessage());
+            return OptionalData
+                    .map(item -> Base64.getDecoder().decode(item.getBlob()))
+                    .orElseThrow(() -> new CustomImageProcessingException("Unexpected error on server side."));
+        } catch (IOException ex){
+            throw new CustomImageProcessingException(ex.getMessage());
         }
     }
     private void validateImageSize(MultipartFile image) throws CustomImageProcessingException.InvalidImageSizeException {
@@ -97,7 +89,7 @@ public class UpscaleServiceImpl implements UpscaleService{
                 var errorMessage = argsNode.get(0).asText();
                 throw new CustomImageProcessingException.UpscaleApiException(errorMessage);
             } else {
-                throw new CustomImageProcessingException.UpscaleApiException("API Error: No exception information found in the response.");
+                throw new CustomImageProcessingException.UpscaleApiUnexpectedException("API Error: No exception information found in the response.");
             }
         }
         return objectMapper.readValue(responseBody, UpscaleResponse.class);

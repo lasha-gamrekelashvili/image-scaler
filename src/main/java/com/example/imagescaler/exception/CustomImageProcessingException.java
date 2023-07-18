@@ -22,4 +22,11 @@ public class CustomImageProcessingException extends RuntimeException{
             super(message);
         }
     }
+
+    public static class UpscaleApiUnexpectedException extends CustomImageProcessingException {
+        public UpscaleApiUnexpectedException(String message) {
+            super(message);
+        }
+    }
+
 }
