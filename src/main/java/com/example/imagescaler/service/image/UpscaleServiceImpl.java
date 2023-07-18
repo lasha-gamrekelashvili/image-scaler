@@ -23,6 +23,7 @@ public class UpscaleServiceImpl implements UpscaleService{
     @Value("${api.key}")
     public  String API_KEY;
     private final RestTemplate restTemplate;
+    private final ObjectMapper objectMapper;
     private static final long MAX_FILE_SIZE = 10 * 1024 * 1024;
     public static final String SCALE_SIZE = "1200:-1";
     @Override
@@ -34,7 +35,7 @@ public class UpscaleServiceImpl implements UpscaleService{
             validateBase64Data(base64Data);
 
             var dataItem = new UpscaleRequest.DataItem(base64Data);
-            var jsonPayload = new ObjectMapper().writeValueAsString(createUpscaleRequest(dataItem));
+            var jsonPayload = objectMapper.writeValueAsString(createUpscaleRequest(dataItem));
 
             var headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
@@ -78,7 +79,6 @@ public class UpscaleServiceImpl implements UpscaleService{
 
     private UpscaleResponse parseResponse(ResponseEntity<String> rawResponse) throws IOException, CustomImageProcessingException.UpscaleApiException {
         var responseBody = rawResponse.getBody();
-        var objectMapper = new ObjectMapper();
 
         var responseJson = objectMapper.readTree(responseBody);
 
