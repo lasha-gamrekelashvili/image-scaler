@@ -1,95 +1,85 @@
 package com.example.imagescaler.response;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 
 import java.util.List;
 import java.util.Map;
 
 @Data
-@NoArgsConstructor
-@AllArgsConstructor
 public class UpscaleResponse {
 
-    private Header header;
+    private final Header header;
 
-    private Map<String, String> parameters;
+    private final Map<String, String> parameters;
 
-    private List<Route> routes;
+    private final List<Route> routes;
 
-    private List<DataItem> data;
+    private final List<DataItem> data;
 
     @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
     public static class Header {
-        private String requestId;
+        private final String requestId;
 
-        private String status;
+        private final String status;
 
-        private String execEndpoint;
+        private final String execEndpoint;
 
-        private String targetExecutor;
+        private final String targetExecutor;
     }
 
     @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
     public static class Route {
-        private String executor;
+        private final String executor;
 
-        private String startTime;
+        private final String startTime;
 
-        private String endTime;
+        private final String endTime;
 
-        private String status;
+        private final String status;
     }
 
     @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
     public static class DataItem {
-        private String id;
+        private final String id;
 
         @JsonProperty("parent_id")
-        private String parentId;
+        private final String parentId;
 
-        private String granularity;
+        private final String granularity;
 
-        private String adjacency;
+        private final String adjacency;
 
-        private String blob;
+        private final String blob;
 
-        private String tensor;
+        private final String tensor;
 
         @JsonProperty("mime_type")
-        private String mimeType;
+        private final String mimeType;
 
-        private String text;
+        private final String text;
 
-        private int weight;
+        private final int weight;
 
-        private String uri;
+        private final String uri;
 
-        private Map<String, String> tags;
+        private final Map<String, String> tags;
 
-        private String offset;
+        private final String offset;
 
-        private String location;
+        private final String location;
 
-        private String embedding;
+        private final String embedding;
 
-        private String modality;
+        private final String modality;
 
-        private String evaluations;
+        private final String evaluations;
 
-        private String scores;
+        private final String scores;
 
-        private String chunks;
+        private final String chunks;
 
-        private String matches;
+        private final String matches;
     }
 }
 
