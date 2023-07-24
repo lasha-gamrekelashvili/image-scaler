@@ -15,6 +15,7 @@ import org.springframework.web.multipart.MultipartFile;
 import reactor.core.publisher.Mono;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.*;
 
 @Service
@@ -36,35 +37,41 @@ public class UpscaleServiceImpl implements UpscaleService {
             validateImageSize(image);
 
             var base64Data = new String(image.getBytes());
-            return validateBase64Data(base64Data).flatMap(data -> {
-                var dataItem = new UpscaleRequest.DataItem(data);
-                String jsonPayload;
-
-                try {
-                    jsonPayload = objectMapper.writeValueAsString(createUpscaleRequest(dataItem));
-                } catch (JsonProcessingException e) {
-                    return Mono.error(new RuntimeException(e));
-                }
-
-                return webClientBuilder.baseUrl(API_URL)
-                        .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-                        .defaultHeader(HttpHeaders.AUTHORIZATION, API_KEY)
-                        .build()
-                        .post()
-                        .body(BodyInserters.fromValue(jsonPayload))
-                        .retrieve()
-                        .bodyToMono(String.class)
-                        .flatMap(responseBody -> parseResponse(responseBody)
-                                .map(response -> extractDataItem(response)
-                                        .map(item -> Base64.getDecoder().decode(item.getBlob()))
-                                        .orElseThrow(() -> new CustomImageProcessingException("Unexpected error on server side."))
-                                )
-                                .switchIfEmpty(Mono.error(new CustomImageProcessingException("No data found in the response.")))
-                        );
-            });
+            return validateBase64Data(base64Data)
+                    .flatMap(data -> {
+                        var dataItem = new UpscaleRequest.DataItem(data);
+                        try {
+                            String jsonPayload = objectMapper.writeValueAsString(createUpscaleRequest(dataItem));
+                            return postToApi(jsonPayload);
+                        } catch (JsonProcessingException e) {
+                            return Mono.error(new RuntimeException(e));
+                        }
+                    })
+                    .onErrorMap(ex -> new CustomImageProcessingException(ex.getMessage())); // Map any exception to CustomImageProcessingException.
         } catch (Exception ex) {
             return Mono.error(new CustomImageProcessingException(ex.getMessage()));
         }
+    }
+
+    private Mono<byte[]> postToApi(String jsonPayload) {
+        return webClientBuilder.baseUrl(API_URL)
+                .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                .defaultHeader(HttpHeaders.AUTHORIZATION, API_KEY)
+                .build()
+                .post()
+                .body(BodyInserters.fromValue(jsonPayload))
+                .retrieve()
+                .bodyToMono(String.class)
+                .doOnError(error -> {
+                    throw new CustomImageProcessingException(error.getCause().getMessage());
+                })
+                .flatMap(responseBody -> parseResponse(responseBody)
+                        .map(response -> extractDataItem(response)
+                                .map(item -> Base64.getDecoder().decode(item.getBlob()))
+                                .orElseThrow(() -> new CustomImageProcessingException("Unexpected error on server side."))
+                        )
+                        .switchIfEmpty(Mono.error(new CustomImageProcessingException("No data found in the response.")))
+                );
     }
 
     private Optional<UpscaleResponse.DataItem> extractDataItem(UpscaleResponse response) {
