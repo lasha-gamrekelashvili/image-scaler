@@ -7,15 +7,15 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.*;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
-import org.springframework.web.multipart.MultipartFile;
 import reactor.core.publisher.Mono;
 
 import java.io.IOException;
-import java.time.Duration;
 import java.util.*;
 
 @Service
@@ -30,6 +30,8 @@ public class UpscaleServiceImpl implements UpscaleService {
     private final ObjectMapper objectMapper;
     private static final long MAX_FILE_SIZE = 10 * 1024 * 1024;
     public static final String SCALE_SIZE = "1200:-1";
+
+
 
     @Override
     public Mono<byte[]> upscale(MultipartFile image) {
@@ -47,8 +49,8 @@ public class UpscaleServiceImpl implements UpscaleService {
                             return Mono.error(new RuntimeException(e));
                         }
                     })
-                    .onErrorMap(ex -> new CustomImageProcessingException(ex.getMessage())); // Map any exception to CustomImageProcessingException.
-        } catch (Exception ex) {
+                    .onErrorMap(ex -> new CustomImageProcessingException.InvalidBase64DataException(ex.getMessage())); // Map any exception to CustomImageProcessingException.
+        } catch (IOException ex) {
             return Mono.error(new CustomImageProcessingException(ex.getMessage()));
         }
     }
