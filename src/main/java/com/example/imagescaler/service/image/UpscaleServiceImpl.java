@@ -3,6 +3,7 @@ package com.example.imagescaler.service.image;
 import com.example.imagescaler.exception.CustomImageProcessingException;
 import com.example.imagescaler.request.UpscaleRequest;
 import com.example.imagescaler.response.UpscaleResponse;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -35,27 +36,33 @@ public class UpscaleServiceImpl implements UpscaleService {
             validateImageSize(image);
 
             var base64Data = new String(image.getBytes());
-            validateBase64Data(base64Data);
+            return validateBase64Data(base64Data).flatMap(data -> {
+                var dataItem = new UpscaleRequest.DataItem(data);
+                String jsonPayload;
 
-            var dataItem = new UpscaleRequest.DataItem(base64Data);
-            var jsonPayload = objectMapper.writeValueAsString(createUpscaleRequest(dataItem));
+                try {
+                    jsonPayload = objectMapper.writeValueAsString(createUpscaleRequest(dataItem));
+                } catch (JsonProcessingException e) {
+                    return Mono.error(new RuntimeException(e));
+                }
 
-            return webClientBuilder.baseUrl(API_URL)
-                    .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-                    .defaultHeader(HttpHeaders.AUTHORIZATION, API_KEY)
-                    .build()
-                    .post()
-                    .body(BodyInserters.fromValue(jsonPayload))
-                    .retrieve()
-                    .bodyToMono(String.class)
-                    .flatMap(responseBody -> parseResponse(responseBody)
-                                    .map(response -> extractDataItem(response)
-                                            .map(item -> Base64.getDecoder().decode(item.getBlob()))
-                                            .orElseThrow(() -> new CustomImageProcessingException("Unexpected error on server side."))
-                                    )
-                                    .switchIfEmpty(Mono.error(new CustomImageProcessingException("No data found in the response.")))
-                    );
-        } catch (IOException ex) {
+                return webClientBuilder.baseUrl(API_URL)
+                        .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                        .defaultHeader(HttpHeaders.AUTHORIZATION, API_KEY)
+                        .build()
+                        .post()
+                        .body(BodyInserters.fromValue(jsonPayload))
+                        .retrieve()
+                        .bodyToMono(String.class)
+                        .flatMap(responseBody -> parseResponse(responseBody)
+                                .map(response -> extractDataItem(response)
+                                        .map(item -> Base64.getDecoder().decode(item.getBlob()))
+                                        .orElseThrow(() -> new CustomImageProcessingException("Unexpected error on server side."))
+                                )
+                                .switchIfEmpty(Mono.error(new CustomImageProcessingException("No data found in the response.")))
+                        );
+            });
+        } catch (Exception ex) {
             return Mono.error(new CustomImageProcessingException(ex.getMessage()));
         }
     }
@@ -70,12 +77,9 @@ public class UpscaleServiceImpl implements UpscaleService {
         }
     }
 
-    private void validateBase64Data(String base64Data) throws CustomImageProcessingException.InvalidBase64DataException {
-        try {
-            Base64.getDecoder().decode(base64Data);
-        } catch (IllegalArgumentException e) {
-            throw new CustomImageProcessingException.InvalidBase64DataException("Invalid base64 encoded data.");
-        }
+    private Mono<String> validateBase64Data(String base64Data) {
+        return Mono.fromCallable(() -> Base64.getDecoder().decode(base64Data))
+                .map(data -> base64Data).onErrorResume(throwable -> Mono.error(()-> new CustomImageProcessingException.InvalidBase64DataException("Invalid base64 data.")));
     }
 
     private UpscaleRequest createUpscaleRequest(UpscaleRequest.DataItem dataItem) {
