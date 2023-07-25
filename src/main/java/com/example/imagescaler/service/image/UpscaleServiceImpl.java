@@ -1,18 +1,15 @@
 package com.example.imagescaler.service.image;
 
 import com.example.imagescaler.exception.CustomImageProcessingException;
+import com.example.imagescaler.provider.upscaleApi.UpscaleApiProvider;
 import com.example.imagescaler.request.UpscaleRequest;
 import com.example.imagescaler.response.UpscaleResponse;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.reactive.function.BodyInserters;
-import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
 import java.io.IOException;
@@ -26,11 +23,10 @@ public class UpscaleServiceImpl implements UpscaleService {
     private String API_URL;
     @Value("${api.key}")
     public String API_KEY;
-    private final WebClient.Builder webClientBuilder;
     private final ObjectMapper objectMapper;
+    private final UpscaleApiProvider upscaleApiProvider;
     private static final long MAX_FILE_SIZE = 10 * 1024 * 1024;
     public static final String SCALE_SIZE = "1200:-1";
-
 
 
     @Override
@@ -40,39 +36,46 @@ public class UpscaleServiceImpl implements UpscaleService {
 
             var base64Data = new String(image.getBytes());
             return validateBase64Data(base64Data)
+                    .onErrorMap(ex -> new CustomImageProcessingException.InvalidBase64DataException(ex.getMessage()))
                     .flatMap(data -> {
                         var dataItem = new UpscaleRequest.DataItem(data);
                         try {
                             String jsonPayload = objectMapper.writeValueAsString(createUpscaleRequest(dataItem));
-                            return postToApi(jsonPayload);
+                            return postToApi(jsonPayload)
+                                    .onErrorResume(ex -> {
+                                        if (ex instanceof CustomImageProcessingException.UpscaleApiException || ex instanceof CustomImageProcessingException.UpscaleApiUnexpectedException) {
+                                            return Mono.error(ex);
+                                        } else {
+                                            return Mono.error(new CustomImageProcessingException(ex.getMessage()));
+                                        }
+                                    });
                         } catch (JsonProcessingException e) {
                             return Mono.error(new RuntimeException(e));
                         }
-                    })
-                    .onErrorMap(ex -> new CustomImageProcessingException.InvalidBase64DataException(ex.getMessage())); // Map any exception to CustomImageProcessingException.
+                    });
         } catch (IOException ex) {
             return Mono.error(new CustomImageProcessingException(ex.getMessage()));
         }
     }
 
     private Mono<byte[]> postToApi(String jsonPayload) {
-        return webClientBuilder.baseUrl(API_URL)
-                .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-                .defaultHeader(HttpHeaders.AUTHORIZATION, API_KEY)
-                .build()
-                .post()
-                .body(BodyInserters.fromValue(jsonPayload))
-                .retrieve()
-                .bodyToMono(String.class)
+        return upscaleApiProvider.upscale(jsonPayload)
                 .doOnError(error -> {
                     throw new CustomImageProcessingException(error.getCause().getMessage());
                 })
                 .flatMap(responseBody -> parseResponse(responseBody)
                         .map(response -> extractDataItem(response)
                                 .map(item -> Base64.getDecoder().decode(item.getBlob()))
-                                .orElseThrow(() -> new CustomImageProcessingException("Unexpected error on server side."))
+                                .orElseThrow(() -> new CustomImageProcessingException.UpscaleApiException("Unexpected error on server side."))
                         )
-                        .switchIfEmpty(Mono.error(new CustomImageProcessingException("No data found in the response.")))
+                        .switchIfEmpty(Mono.error(new CustomImageProcessingException.UpscaleApiUnexpectedException("No data found in the response.")))
+                        .onErrorResume(ex -> {
+                            if (ex instanceof CustomImageProcessingException.UpscaleApiException || ex instanceof CustomImageProcessingException.UpscaleApiUnexpectedException) {
+                                return Mono.error(ex);
+                            } else {
+                                return Mono.error(new CustomImageProcessingException(ex.getMessage()));
+                            }
+                        })
                 );
     }
 

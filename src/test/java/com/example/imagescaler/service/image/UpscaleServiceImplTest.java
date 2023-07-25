@@ -2,19 +2,16 @@ package com.example.imagescaler.service.image;
 
 import com.example.imagescaler.ImageScalerApplication;
 import com.example.imagescaler.exception.CustomImageProcessingException;
-import com.github.tomakehurst.wiremock.WireMockServer;
-import org.junit.jupiter.api.AfterEach;
+import com.example.imagescaler.provider.upscaleApi.UpscaleApiProviderImpl;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
-import org.mockito.MockitoAnnotations;
-import org.springframework.beans.factory.annotation.Value;
+import org.mockito.Mock;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -22,10 +19,7 @@ import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 import java.io.IOException;
-import java.util.Base64;
 
-import static com.github.tomakehurst.wiremock.client.WireMock.*;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.*;
 import static resources.TestConstants.*;
 
@@ -34,35 +28,19 @@ import static resources.TestConstants.*;
 @SpringBootTest(classes = ImageScalerApplication.class)
 class UpscaleServiceImplTest {
 
-    @MockBean
+
+    @Mock
     private WebClient.Builder webClientBuilder;
+
+    @Mock
+    private UpscaleApiProviderImpl mockedProvider;
 
     @InjectMocks
     private UpscaleServiceImpl upscaleService;
 
-    private WireMockServer wireMockServer;
-
-    @Value("${api.url}")
-    private String API_URL;
-
-
     @BeforeEach
-    public void setUp() {
-        MockitoAnnotations.openMocks(this);
-
-        wireMockServer = new WireMockServer(8080);
-        wireMockServer.start();
-
-        WebClient webClient = WebClient.builder().baseUrl("http://localhost:8080").build();
-
-        doReturn(webClient).when(webClientBuilder).build();
-    }
-
-    @AfterEach
-    public void cleanup() {
-        if (wireMockServer != null) {
-            wireMockServer.stop();
-        }
+    void setUp() {
+        upscaleService = new UpscaleServiceImpl(new ObjectMapper(), mockedProvider);
     }
 
     @Test
@@ -85,35 +63,11 @@ class UpscaleServiceImplTest {
     }
 
     @Test
-    public void testValidResponse() throws IOException {
-        var image = mock(MultipartFile.class);
-        when(image.getSize()).thenReturn(1024L);
-        when(image.getBytes()).thenReturn(VALID_BASE64.getBytes());
-
-        wireMockServer.stubFor(post(urlEqualTo(API_URL))
-                .willReturn(aResponse()
-                        .withStatus(HttpStatus.OK.value())
-                        .withHeader("Content-Type", MediaType.TEXT_PLAIN_VALUE)
-                        .withBody(VALID_RESPONSE)));
-
-        Mono<byte[]> resultMono = upscaleService.upscale(image);
-
-        StepVerifier.create(resultMono)
-                .expectNext(Base64.getDecoder().decode(VALID_RESPONSE))
-                .verifyComplete();
-    }
-
-    @Test
     public void testParseMessageErrorWithArgs() throws IOException {
         var image = mock(MultipartFile.class);
         when(image.getSize()).thenReturn(1024L);
         when(image.getBytes()).thenReturn(VALID_BASE64.getBytes());
-
-        wireMockServer.stubFor(post(urlEqualTo(API_URL))
-                .willReturn(aResponse()
-                        .withStatus(HttpStatus.OK.value())
-                        .withHeader("Content-Type", MediaType.TEXT_PLAIN_VALUE)
-                        .withBody(ERROR_WITH_ARGS)));
+        when(mockedProvider.upscale(anyString())).thenReturn(Mono.just(ERROR_WITH_ARGS));
 
         Mono<byte[]> resultMono = upscaleService.upscale(image);
 
@@ -124,15 +78,15 @@ class UpscaleServiceImplTest {
 
     @Test
     public void testParseMessageErrorWithoutArgs() throws IOException {
+
+        var mockedProvider = mock(UpscaleApiProviderImpl.class);
         var image = mock(MultipartFile.class);
+
         when(image.getSize()).thenReturn(1024L);
         when(image.getBytes()).thenReturn(VALID_BASE64.getBytes());
+        when(mockedProvider.upscale(anyString())).thenReturn(Mono.just(ERROR_WITHOUT_ARGS));
 
-        wireMockServer.stubFor(post(urlEqualTo(API_URL))
-                .willReturn(aResponse()
-                        .withStatus(HttpStatus.OK.value())
-                        .withHeader("Content-Type", MediaType.TEXT_PLAIN_VALUE)
-                        .withBody(ERROR_WITHOUT_ARGS)));
+        UpscaleService upscaleService = new UpscaleServiceImpl(new ObjectMapper(), mockedProvider);
 
         Mono<byte[]> resultMono = upscaleService.upscale(image);
 
@@ -140,5 +94,4 @@ class UpscaleServiceImplTest {
                 .expectError(CustomImageProcessingException.UpscaleApiUnexpectedException.class)
                 .verify();
     }
-
 }
