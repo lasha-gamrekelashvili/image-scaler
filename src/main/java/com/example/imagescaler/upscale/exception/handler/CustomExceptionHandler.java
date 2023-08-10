@@ -1,49 +1,96 @@
 package com.example.imagescaler.upscale.exception.handler;
 
 import com.example.imagescaler.upscale.exception.CustomImageProcessingException;
-import java.io.IOException;
+import java.net.URI;
+import lombok.val;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.reactive.result.method.annotation.ResponseEntityExceptionHandler;
 
 @ControllerAdvice
-public class CustomExceptionHandler {
+public class CustomExceptionHandler extends ResponseEntityExceptionHandler {
 
   @ExceptionHandler(
-    {
-      CustomImageProcessingException.InvalidImageSizeException.class,
-      CustomImageProcessingException.UpscaleApiException.class,
-      CustomImageProcessingException.UpscaleApiUnexpectedException.class,
-      CustomImageProcessingException.InvalidBase64DataException.class
-    }
+    { CustomImageProcessingException.InvalidBase64DataException.class }
   )
-  public ResponseEntity<String> handleCustomImageProcessingException(
+  public ProblemDetail handleInvalidBase64Exception(
     CustomImageProcessingException ex
   ) {
-    return ResponseEntity.badRequest().body(ex.getMessage());
+    val problemDetail = ProblemDetail.forStatusAndDetail(
+      HttpStatus.BAD_REQUEST,
+      ex.getMessage()
+    );
+    problemDetail.setType(URI.create(("problems/invalid-64")));
+    return problemDetail;
+  }
+
+  @ExceptionHandler(
+    { CustomImageProcessingException.InvalidImageSizeException.class }
+  )
+  public ProblemDetail handleInvalidImageSizeException(
+    CustomImageProcessingException ex
+  ) {
+    val problemDetail = ProblemDetail.forStatusAndDetail(
+      HttpStatus.BAD_REQUEST,
+      ex.getMessage()
+    );
+    problemDetail.setType(URI.create(("problems/invalid-size")));
+    return problemDetail;
+  }
+
+  @ExceptionHandler(
+    { CustomImageProcessingException.UpscaleApiException.class }
+  )
+  public ProblemDetail handleUpscaleApiException(
+    CustomImageProcessingException ex
+  ) {
+    val problemDetail = ProblemDetail.forStatusAndDetail(
+      HttpStatus.BAD_REQUEST,
+      ex.getMessage()
+    );
+    problemDetail.setType(URI.create(("problems/upscale-api-error")));
+    return problemDetail;
+  }
+
+  @ExceptionHandler(
+    { CustomImageProcessingException.UpscaleApiUnexpectedException.class }
+  )
+  public ProblemDetail handleUpscaleApiUnexpectedException(
+    CustomImageProcessingException ex
+  ) {
+    val problemDetail = ProblemDetail.forStatusAndDetail(
+      HttpStatus.BAD_REQUEST,
+      ex.getMessage()
+    );
+    problemDetail.setType(
+      URI.create(("problems/upscale-api-unexpected-error"))
+    );
+    return problemDetail;
   }
 
   @ExceptionHandler(CustomImageProcessingException.class)
-  public ResponseEntity<String> handleGenericImageProcessingException(
-    Exception ex
-  ) {
-    return ResponseEntity
-      .status(HttpStatus.INTERNAL_SERVER_ERROR)
-      .body(ex.getMessage());
+  public ProblemDetail handleGenericImageProcessingException(Exception ex) {
+    val problemDetail = ProblemDetail.forStatusAndDetail(
+      HttpStatus.INTERNAL_SERVER_ERROR,
+      ex.getMessage()
+    );
+    problemDetail.setType(
+      URI.create(("problems/generic-image-processing-error"))
+    );
+    return problemDetail;
   }
 
   @ExceptionHandler(Exception.class)
-  public ResponseEntity<String> handleGenericException(Exception ex) {
-    return ResponseEntity
-      .status(HttpStatus.INTERNAL_SERVER_ERROR)
-      .body(ex.getMessage());
-  }
-
-  @ExceptionHandler(IOException.class)
-  public ResponseEntity<Object> handleIOException(IOException ex) {
-    return ResponseEntity
-      .status(HttpStatus.INTERNAL_SERVER_ERROR)
-      .body(ex.getMessage());
+  public ProblemDetail handleGenericException(Exception ex) {
+    val problemDetail = ProblemDetail.forStatusAndDetail(
+      HttpStatus.INTERNAL_SERVER_ERROR,
+      ex.getMessage()
+    );
+    problemDetail.setType(
+      URI.create(("problems/unexpected-image-processing-error"))
+    );
+    return problemDetail;
   }
 }

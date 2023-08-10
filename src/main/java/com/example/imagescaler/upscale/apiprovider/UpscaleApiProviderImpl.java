@@ -1,7 +1,8 @@
 package com.example.imagescaler.upscale.apiprovider;
 
-import com.example.imagescaler.upscale.configuration.ApiProperties;
+import com.example.imagescaler.upscale.configuration.UpscaleApiConfig;
 import java.time.Duration;
+import lombok.val;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
@@ -13,38 +14,31 @@ import reactor.netty.http.client.HttpClient;
 
 @Service
 public class UpscaleApiProviderImpl implements UpscaleApiProvider {
-  private final ApiProperties apiProperties;
   private final WebClient webClient;
 
   public UpscaleApiProviderImpl(
-    ApiProperties apiProperties,
+    UpscaleApiConfig.Configuration apiConfig,
     WebClient.Builder webClientBuilder
   ) {
-    this.apiProperties = apiProperties;
-    this.webClient = initializeWebClient(webClientBuilder);
-  }
+    val httpClient = HttpClient.create().responseTimeout(Duration.ofMinutes(2));
 
-  private WebClient initializeWebClient(WebClient.Builder webClientBuilder) {
-    HttpClient httpClient = HttpClient
-      .create()
-      .responseTimeout(Duration.ofMinutes(2));
+    val connector = new ReactorClientHttpConnector(httpClient);
 
-    ReactorClientHttpConnector connector = new ReactorClientHttpConnector(
-      httpClient
-    );
-
-    return webClientBuilder
-      .baseUrl(apiProperties.getUrl())
-      .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-      .defaultHeader(HttpHeaders.AUTHORIZATION, apiProperties.getKey())
-      .clientConnector(connector)
-      .build();
+    this.webClient =
+      webClientBuilder
+        .baseUrl(apiConfig.getUrl())
+        .defaultHeader(
+          HttpHeaders.CONTENT_TYPE,
+          MediaType.APPLICATION_JSON_VALUE
+        )
+        .defaultHeader(HttpHeaders.AUTHORIZATION, apiConfig.getKey())
+        .clientConnector(connector)
+        .build();
   }
 
   @Override
   public Mono<String> upscale(String jsonPayload) {
-    return webClient
-      .post()
+    return this.webClient.post()
       .body(BodyInserters.fromValue(jsonPayload))
       .retrieve()
       .bodyToMono(String.class);
