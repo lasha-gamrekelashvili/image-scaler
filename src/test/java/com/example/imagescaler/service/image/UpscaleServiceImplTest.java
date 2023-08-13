@@ -1,106 +1,109 @@
 package com.example.imagescaler.service.image;
 
-import com.example.imagescaler.exception.CustomImageProcessingException;
+import static org.mockito.Mockito.*;
+import static resources.TestConstants.*;
+
+import com.example.imagescaler.ImageScalerApplication;
+import com.example.imagescaler.upscale.apiprovider.UpscaleApiProviderImpl;
+import com.example.imagescaler.upscale.exception.CustomImageProcessingException;
+import com.example.imagescaler.upscale.service.UpscaleService;
+import com.example.imagescaler.upscale.service.UpscaleServiceImpl;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.IOException;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.MockitoAnnotations;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
-import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
-
-import java.io.IOException;
-import java.util.Base64;
-
-import static org.mockito.Mockito.*;
-import static resources.TestConstants.*;
-
+import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
+import reactor.test.StepVerifier;
 
 @ExtendWith(SpringExtension.class)
-@SpringBootTest
+@SpringBootTest(classes = ImageScalerApplication.class)
 class UpscaleServiceImplTest {
 
-    @MockBean
-    private RestTemplate restTemplate;
+  @Mock
+  private WebClient.Builder webClientBuilder;
 
-    @Autowired
-    private UpscaleServiceImpl upscaleService;
+  @Mock
+  private UpscaleApiProviderImpl mockedProvider;
 
-    @BeforeEach
-    public void setUp() {
-        MockitoAnnotations.openMocks(this);
-    }
+  @InjectMocks
+  private UpscaleServiceImpl upscaleService;
 
-    @Test
-    public void testValidResponse() throws IOException {
-        var image = mock(MultipartFile.class);
-        when(image.getSize()).thenReturn(1024L);
-        when(image.getBytes()).thenReturn(VALID_BASE64.getBytes());
+  @BeforeEach
+  void setUp() {
+    upscaleService = new UpscaleServiceImpl(new ObjectMapper(), mockedProvider);
+  }
 
+  @Test
+  public void testUpscaleInvalidImageSize() {
+    var image = mock(MultipartFile.class);
+    when(image.getSize()).thenReturn(11 * 1024 * 1024L); // Image size > MAX_FILE_SIZE
 
-        ResponseEntity<String> mockResponse = new ResponseEntity<>(VALID_RESPONSE, HttpStatus.OK);
-        when(restTemplate.exchange(anyString(), any(), any(HttpEntity.class), eq(String.class)))
-                .thenReturn(mockResponse);
+    Assertions.assertThrows(
+      CustomImageProcessingException.InvalidImageSizeException.class,
+      () -> upscaleService.upscale(image).block()
+    );
+    verify(webClientBuilder, never()).build();
+  }
 
-        var result = upscaleService.upscale(image);
+  @Test
+  public void testUpscaleInvalidBase64Data() throws IOException {
+    var image = mock(MultipartFile.class);
+    when(image.getSize()).thenReturn(1024L);
+    when(image.getBytes()).thenReturn("invalid-base64-data".getBytes());
 
-        Assertions.assertArrayEquals( result,Base64.getDecoder().decode(VALID_BASE64));
-        verify(restTemplate, times(1)).exchange(anyString(), eq(HttpMethod.POST), any(HttpEntity.class), eq(String.class));
-    }
-    @Test
-    public void testParseMessageErrorWithArgs() throws IOException {
-        var image = mock(MultipartFile.class);
-        when(image.getSize()).thenReturn(1024L);
-        when(image.getBytes()).thenReturn(VALID_BASE64.getBytes());
+    Assertions.assertThrows(
+      CustomImageProcessingException.InvalidBase64DataException.class,
+      () -> upscaleService.upscale(image).block()
+    );
+    verify(webClientBuilder, never()).build();
+  }
 
+  @Test
+  public void testParseMessageErrorWithArgs() throws IOException {
+    var image = mock(MultipartFile.class);
+    when(image.getSize()).thenReturn(1024L);
+    when(image.getBytes()).thenReturn(VALID_BASE64.getBytes());
+    when(mockedProvider.upscale(anyString()))
+      .thenReturn(Mono.just(ERROR_WITH_ARGS));
 
-        ResponseEntity<String> mockResponse = new ResponseEntity<>(ERROR_WITH_ARGS, HttpStatus.OK);
-        when(restTemplate.exchange(anyString(), any(), any(HttpEntity.class), eq(String.class)))
-                .thenReturn(mockResponse);
+    Mono<byte[]> resultMono = upscaleService.upscale(image);
 
-        Assertions.assertThrows(CustomImageProcessingException.UpscaleApiException.class, () -> upscaleService.upscale(image));
-        verify(restTemplate, times(1)).exchange(anyString(), eq(HttpMethod.POST), any(HttpEntity.class), eq(String.class));
-    }
+    StepVerifier
+      .create(resultMono)
+      .expectError(CustomImageProcessingException.UpscaleApiException.class)
+      .verify();
+  }
 
-    @Test
-    public void testParseMessageErrorWithoutArgs() throws IOException {
-        var image = mock(MultipartFile.class);
-        when(image.getSize()).thenReturn(1024L);
-        when(image.getBytes()).thenReturn(VALID_BASE64.getBytes());
+  @Test
+  public void testParseMessageErrorWithoutArgs() throws IOException {
+    var mockedProvider = mock(UpscaleApiProviderImpl.class);
+    var image = mock(MultipartFile.class);
 
-        ResponseEntity<String> mockResponse = new ResponseEntity<>(ERROR_WITHOUT_ARGS, HttpStatus.OK);
-        when(restTemplate.exchange(anyString(), any(), any(HttpEntity.class), eq(String.class)))
-                .thenReturn(mockResponse);
+    when(image.getSize()).thenReturn(1024L);
+    when(image.getBytes()).thenReturn(VALID_BASE64.getBytes());
+    when(mockedProvider.upscale(anyString()))
+      .thenReturn(Mono.just(ERROR_WITHOUT_ARGS));
 
-        Assertions.assertThrows(CustomImageProcessingException.UpscaleApiUnexpectedException.class, () -> upscaleService.upscale(image));
-        verify(restTemplate, times(1)).exchange(anyString(), eq(HttpMethod.POST), any(HttpEntity.class), eq(String.class));
-    }
+    UpscaleService upscaleService = new UpscaleServiceImpl(
+      new ObjectMapper(),
+      mockedProvider
+    );
 
-    @Test
-    public void testUpscaleInvalidImageSize() {
-        var image = mock(MultipartFile.class);
-        when(image.getSize()).thenReturn(11 * 1024 * 1024L); // Image size > MAX_FILE_SIZE
+    Mono<byte[]> resultMono = upscaleService.upscale(image);
 
-        Assertions.assertThrows(CustomImageProcessingException.InvalidImageSizeException.class, () -> upscaleService.upscale(image));
-        verify(restTemplate, never()).exchange(anyString(), eq(HttpMethod.POST), any(HttpEntity.class), eq(String.class));
-    }
-
-    @Test
-    public void testUpscaleInvalidBase64Data() throws IOException {
-        var image = mock(MultipartFile.class);
-        when(image.getSize()).thenReturn(1024L);
-        when(image.getBytes()).thenReturn("invalid-base64-data".getBytes());
-
-        Assertions.assertThrows(CustomImageProcessingException.InvalidBase64DataException.class, () -> upscaleService.upscale(image));
-        verify(restTemplate, never()).exchange(anyString(), eq(HttpMethod.POST), any(HttpEntity.class), eq(String.class));
-    }
-
+    StepVerifier
+      .create(resultMono)
+      .expectError(
+        CustomImageProcessingException.UpscaleApiUnexpectedException.class
+      )
+      .verify();
+  }
 }
