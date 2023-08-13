@@ -14,6 +14,7 @@ import reactor.netty.http.client.HttpClient;
 
 @Service
 public class UpscaleApiProviderImpl implements UpscaleApiProvider {
+
   private final WebClient webClient;
 
   public UpscaleApiProviderImpl(

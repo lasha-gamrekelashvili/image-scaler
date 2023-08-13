@@ -19,6 +19,7 @@ import reactor.core.publisher.Mono;
 @RequestMapping("/api/image")
 @RequiredArgsConstructor
 public class ImageController {
+
   private final UpscaleService upscaleService;
 
   @PostMapping(
@@ -38,7 +39,7 @@ public class ImageController {
           @Content(
             mediaType = MediaType.IMAGE_JPEG_VALUE,
             schema = @Schema(type = "string", format = "binary")
-          )
+          ),
         }
       ),
       @ApiResponse(
@@ -48,7 +49,7 @@ public class ImageController {
           @Content(
             mediaType = "text/plain",
             schema = @Schema(implementation = String.class)
-          )
+          ),
         }
       ),
       @ApiResponse(
@@ -58,9 +59,9 @@ public class ImageController {
           @Content(
             mediaType = "text/plain",
             schema = @Schema(implementation = String.class)
-          )
+          ),
         }
-      )
+      ),
     }
   )
   public Mono<byte[]> uploadImage(@RequestPart("file") MultipartFile image) {

@@ -16,6 +16,7 @@ import reactor.core.publisher.Mono;
 @Service
 @RequiredArgsConstructor
 public class UpscaleServiceImpl implements UpscaleService {
+
   private final ObjectMapper objectMapper;
   private final UpscaleApiProvider upscaleApiProvider;
   private static final long MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -45,16 +46,14 @@ public class UpscaleServiceImpl implements UpscaleService {
 
   private Mono<byte[]> validateImageAndExtractBytes(MultipartFile image) {
     return Mono
-      .fromCallable(
-        () -> {
-          if (image.getSize() > MAX_FILE_SIZE) {
-            throw new CustomImageProcessingException.InvalidImageSizeException(
-              "File size exceeds the maximum allowed limit of 10mb."
-            );
-          }
-          return image.getBytes();
+      .fromCallable(() -> {
+        if (image.getSize() > MAX_FILE_SIZE) {
+          throw new CustomImageProcessingException.InvalidImageSizeException(
+            "File size exceeds the maximum allowed limit of 10mb."
+          );
         }
-      )
+        return image.getBytes();
+      })
       .onErrorMap(
         CustomImageProcessingException.InvalidImageSizeException.class,
         ex ->
@@ -69,27 +68,24 @@ public class UpscaleServiceImpl implements UpscaleService {
     return Mono
       .fromCallable(() -> Base64.getDecoder().decode(base64Data))
       .map(data -> base64Data)
-      .onErrorResume(
-        throwable ->
-          Mono.error(
-            () ->
-              new CustomImageProcessingException.InvalidBase64DataException(
-                "Invalid base64 data."
-              )
+      .onErrorResume(throwable ->
+        Mono.error(() ->
+          new CustomImageProcessingException.InvalidBase64DataException(
+            "Invalid base64 data."
           )
+        )
       );
   }
 
   private Mono<byte[]> createAndPostUpscaleRequest(String base64Data) {
     UpscaleRequest.DataItem dataItem = new UpscaleRequest.DataItem(base64Data);
     return Mono
-      .fromCallable(
-        () -> objectMapper.writeValueAsString(createUpscaleRequest(dataItem))
+      .fromCallable(() ->
+        objectMapper.writeValueAsString(createUpscaleRequest(dataItem))
       )
-      .flatMap(
-        jsonPayload ->
-          postToApi(jsonPayload)
-            .onErrorResume(CustomImageProcessingException.class, Mono::error)
+      .flatMap(jsonPayload ->
+        postToApi(jsonPayload)
+          .onErrorResume(CustomImageProcessingException.class, Mono::error)
       )
       .onErrorMap(JsonProcessingException.class, RuntimeException::new);
   }
@@ -112,72 +108,86 @@ public class UpscaleServiceImpl implements UpscaleService {
   private Mono<UpscaleResponse> parseResponse(String responseBody) {
     return Mono
       .fromCallable(() -> objectMapper.readTree(responseBody))
-      .flatMap(
-        responseJson -> {
-          if (
-            responseJson.has("header") &&
-            responseJson.get("header").has("status") &&
-            responseJson.get("header").get("status").has("exception")
-          ) {
-            var exceptionNode = responseJson
-              .get("header")
-              .get("status")
-              .get("exception");
-            if (exceptionNode.has("args")) {
-              var argsNode = exceptionNode.get("args");
-              var errorMessage = argsNode.get(0).asText();
-              return Mono.error(
-                new CustomImageProcessingException.UpscaleApiException(
-                  errorMessage
-                )
-              );
-            } else {
-              return Mono.error(
-                new CustomImageProcessingException.UpscaleApiUnexpectedException(
-                  "API Error: No exception information found in the response."
-                )
-              );
-            }
-          }
-          try {
-            UpscaleResponse response = objectMapper.readValue(
-              responseBody,
-              UpscaleResponse.class
+      .flatMap(responseJson -> {
+        if (
+          responseJson.has("header") &&
+          responseJson.get("header").has("status") &&
+          responseJson.get("header").get("status").has("exception")
+        ) {
+          var exceptionNode = responseJson
+            .get("header")
+            .get("status")
+            .get("exception");
+          if (exceptionNode.has("args")) {
+            var argsNode = exceptionNode.get("args");
+            var errorMessage = argsNode.get(0).asText();
+            return Mono.error(
+              new CustomImageProcessingException.UpscaleApiException(
+                errorMessage
+              )
             );
-            return Mono.just(response);
-          } catch (IOException e) {
-            return Mono.error(e);
+          } else {
+            return Mono.error(
+              new CustomImageProcessingException.UpscaleApiUnexpectedException(
+                "API Error: No exception information found in the response."
+              )
+            );
           }
         }
-      )
-      .onErrorResume(
-        throwable -> {
-          if (
-            throwable instanceof CustomImageProcessingException.UpscaleApiException ||
-            throwable instanceof CustomImageProcessingException.UpscaleApiUnexpectedException
-          ) {
-            return Mono.error(throwable);
-          }
-          return Mono.error(
-            new CustomImageProcessingException.UpscaleApiUnexpectedException(
-              "Unexpected error occurred."
-            )
+        try {
+          UpscaleResponse response = objectMapper.readValue(
+            responseBody,
+            UpscaleResponse.class
           );
+          return Mono.just(response);
+        } catch (IOException e) {
+          return Mono.error(e);
         }
-      );
+      })
+      .onErrorResume(throwable -> {
+        if (
+          throwable instanceof CustomImageProcessingException.UpscaleApiException ||
+          throwable instanceof CustomImageProcessingException.UpscaleApiUnexpectedException
+        ) {
+          return Mono.error(throwable);
+        }
+        return Mono.error(
+          new CustomImageProcessingException.UpscaleApiUnexpectedException(
+            "Unexpected error occurred."
+          )
+        );
+      });
   }
 
   private Mono<byte[]> extractAndDecodeDataItem(UpscaleResponse response) {
     return extractDataItem(response)
       .map(item -> Base64.getDecoder().decode(item.getBlob()))
       .map(Mono::just)
-      .orElseGet(
-        () ->
-          Mono.error(
-            new CustomImageProcessingException.UpscaleApiException(
-              "No data found in the response."
-            )
+      .orElseGet(() ->
+        Mono.error(
+          new CustomImageProcessingException.UpscaleApiException(
+            "No data found in the response."
           )
+        )
+      );
+  }
+
+  private Mono<byte[]> prettierTest(
+
+
+
+    UpscaleResponse response) {
+    return extractDataItem(response).map(item -> Base64.getDecoder().decode(item.getBlob()))
+      .map(Mono::just).orElseGet(() ->
+        Mono.error(
+
+
+
+          new CustomImageProcessingException.UpscaleApiException(
+
+            "No data found in the response."
+          )
+        )
       );
   }
 

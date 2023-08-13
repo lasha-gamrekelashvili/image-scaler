@@ -6,6 +6,7 @@ import lombok.Data;
 
 @Data
 public class UpscaleRequest {
+
   private final String execEndpoint;
 
   private final List<DataItem> data;
@@ -14,6 +15,7 @@ public class UpscaleRequest {
 
   @Data
   public static class DataItem {
+
     private final String blob;
   }
 }

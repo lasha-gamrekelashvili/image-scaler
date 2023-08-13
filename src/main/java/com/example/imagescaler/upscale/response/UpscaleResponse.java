@@ -7,6 +7,7 @@ import lombok.Data;
 
 @Data
 public class UpscaleResponse {
+
   private final Header header;
 
   private final Map<String, String> parameters;
@@ -17,6 +18,7 @@ public class UpscaleResponse {
 
   @Data
   public static class Header {
+
     private final String requestId;
 
     private final String status;
@@ -28,6 +30,7 @@ public class UpscaleResponse {
 
   @Data
   public static class Route {
+
     private final String executor;
 
     private final String startTime;
@@ -39,6 +42,7 @@ public class UpscaleResponse {
 
   @Data
   public static class DataItem {
+
     private final String id;
 
     @JsonProperty("parent_id")

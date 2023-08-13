@@ -26,6 +26,7 @@ import reactor.test.StepVerifier;
 @ExtendWith(SpringExtension.class)
 @SpringBootTest(classes = ImageScalerApplication.class)
 class UpscaleServiceImplTest {
+
   @Mock
   private WebClient.Builder webClientBuilder;
 

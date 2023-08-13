@@ -12,6 +12,7 @@ public class UpscaleApiConfig {
   @ConfigurationProperties(prefix = "upscale-api")
   @Data
   public static class Configuration {
+
     private String url;
     private String key;
   }
