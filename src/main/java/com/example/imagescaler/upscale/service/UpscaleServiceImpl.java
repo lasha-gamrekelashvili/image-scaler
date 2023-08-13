@@ -171,7 +171,7 @@ public class UpscaleServiceImpl implements UpscaleService {
         )
       );
   }
-  
+
   private Optional<UpscaleResponse.DataItem> extractDataItem(
     UpscaleResponse response
   ) {
