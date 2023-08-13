@@ -171,26 +171,7 @@ public class UpscaleServiceImpl implements UpscaleService {
         )
       );
   }
-
-  private Mono<byte[]> prettierTest(
-
-
-
-    UpscaleResponse response) {
-    return extractDataItem(response).map(item -> Base64.getDecoder().decode(item.getBlob()))
-      .map(Mono::just).orElseGet(() ->
-        Mono.error(
-
-
-
-          new CustomImageProcessingException.UpscaleApiException(
-
-            "No data found in the response."
-          )
-        )
-      );
-  }
-
+  
   private Optional<UpscaleResponse.DataItem> extractDataItem(
     UpscaleResponse response
   ) {
