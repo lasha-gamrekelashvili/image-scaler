@@ -1,10 +1,9 @@
-package com.example.imagescaler.provider.upscaleApi;
+package com.example.imagescaler.upscale.apiprovider;
 
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 
 @Component
 public interface UpscaleApiProvider {
-
-    Mono<String> upscale(String jsonPayload);
+  Mono<String> upscale(String jsonPayload);
 }
